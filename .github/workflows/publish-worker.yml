@@ -1,0 +1,84 @@
+name: Publish MeshML Worker to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish_to:
+        description: 'Publish to (pypi or testpypi)'
+        required: true
+        default: 'testpypi'
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+jobs:
+  build-and-publish:
+    name: Build and publish Python package
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: 1.7.1
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+        
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v3
+      with:
+        path: workers/python-worker/.venv
+        key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+        
+    - name: Install dependencies
+      working-directory: workers/python-worker
+      run: poetry install --no-interaction --no-root
+      
+    - name: Install project
+      working-directory: workers/python-worker
+      run: poetry install --no-interaction
+      
+    - name: Run tests
+      working-directory: workers/python-worker
+      run: |
+        poetry run pytest tests/ -v --cov=meshml_worker --cov-report=term-missing
+        
+    - name: Build package
+      working-directory: workers/python-worker
+      run: poetry build
+      
+    - name: Publish to TestPyPI
+      if: github.event.inputs.publish_to == 'testpypi' || github.event_name == 'workflow_dispatch'
+      working-directory: workers/python-worker
+      env:
+        POETRY_PYPI_TOKEN_TESTPYPI: ${{ secrets.TESTPYPI_API_TOKEN }}
+      run: |
+        poetry config repositories.testpypi https://test.pypi.org/legacy/
+        poetry publish -r testpypi --skip-existing
+        
+    - name: Publish to PyPI
+      if: github.event_name == 'release' || github.event.inputs.publish_to == 'pypi'
+      working-directory: workers/python-worker
+      env:
+        POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
+      run: poetry publish --skip-existing
+      
+    - name: Create GitHub Release Assets
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          workers/python-worker/dist/*.whl
+          workers/python-worker/dist/*.tar.gz

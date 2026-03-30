@@ -1,0 +1,47 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: Python Security Check (Bandit)
+      run: |
+        pip install bandit
+        bandit -r services/ -f json -o bandit-report.json || true
+
+    - name: Check for secrets
+      uses: Yelp/detect-secrets-action@master
+      with:
+        baseline: .secrets.baseline
+
+    - name: Dependency Check (Safety)
+      run: |
+        pip install safety
+        for service in services/*/requirements.txt; do
+          echo "Checking $service"
+          safety check -r "$service" || true
+        done
