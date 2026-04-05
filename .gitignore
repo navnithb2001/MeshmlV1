@@ -176,3 +176,4 @@ __pycache__/
 
 # Local MeshML runtime artifacts
 .meshml/
+._*
