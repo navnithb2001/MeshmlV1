@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package meshml.dataset_sharder;
+
+service DatasetSharder {
+  rpc StartSharding(ShardDatasetRequest) returns (ShardDatasetResponse);
+  rpc ShardDataset(ShardDatasetRequest) returns (ShardDatasetResponse);
+  rpc AssignBatches(AssignBatchesRequest) returns (AssignBatchesResponse);
+  rpc GetWorkerAssignment(GetWorkerAssignmentRequest) returns (WorkerAssignmentResponse);
+  rpc GetBatchDownloadUrl(GetBatchDownloadUrlRequest) returns (GetBatchDownloadUrlResponse);
+}
+
+message ShardDatasetRequest {
+  string dataset_id = 1;
+  string job_id = 2;
+  string model_id = 3;
+  string dataset_path = 4;
+  string format = 5;
+  int32 num_shards = 6;
+  string strategy = 7;
+  int32 batch_size = 8;
+  int32 seed = 9;
+}
+
+message ShardSummary {
+  int32 shard_id = 1;
+  int32 num_samples = 2;
+  int32 num_batches = 3;
+}
+
+message ShardDatasetResponse {
+  bool success = 1;
+  string message = 2;
+  string dataset_id = 3;
+  string format = 4;
+  int32 total_samples = 5;
+  int32 num_classes = 6;
+  int32 num_shards = 7;
+  int32 batch_size = 8;
+  int32 total_batches = 9;
+  string strategy = 10;
+  repeated ShardSummary shards = 11;
+}
+
+message AssignBatchesRequest {
+  repeated string worker_ids = 1;
+  int32 shard_id = 2;
+  string strategy = 3;
+}
+
+message WorkerAssignment {
+  string worker_id = 1;
+  int32 shard_id = 2;
+  repeated string assigned_batches = 3;
+  int32 total_samples = 4;
+  double progress = 5;
+  bool is_complete = 6;
+}
+
+message AssignBatchesResponse {
+  bool success = 1;
+  string message = 2;
+  repeated WorkerAssignment assignments = 3;
+}
+
+message GetWorkerAssignmentRequest {
+  string worker_id = 1;
+}
+
+message WorkerAssignmentResponse {
+  bool found = 1;
+  WorkerAssignment assignment = 2;
+}
+
+message GetBatchDownloadUrlRequest {
+  string batch_id = 1;
+}
+
+message GetBatchDownloadUrlResponse {
+  bool found = 1;
+  string download_url = 2;
+  string storage_path = 3;
+  int32 expires_in_seconds = 4;
+}
