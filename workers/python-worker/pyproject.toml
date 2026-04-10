@@ -1,0 +1,89 @@
+[tool.poetry]
+name = "meshml-worker"
+version = "0.3.3"
+description = "MeshML Python Worker - Contribute your device to distributed machine learning training"
+authors = ["MeshML Team <meshml@example.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/navnithb2001/MeshML"
+repository = "https://github.com/navnithb2001/MeshML"
+documentation = "https://meshml.readthedocs.io"
+keywords = ["federated-learning", "distributed-training", "machine-learning", "pytorch", "worker"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Distributed Computing",
+]
+packages = [{include = "meshml_worker"}]
+include = [
+    { path = "scripts/generate_protos.py", format = ["sdist", "wheel"] },
+    { path = "proto/*.proto", format = ["sdist", "wheel"] },
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+torch = ">=2.0.0"
+requests = "^2.31.0"
+aiohttp = "^3.9.0"
+pyyaml = "^6.0"
+click = "^8.1.0"
+numpy = ">=1.24.0"
+tqdm = "^4.66.0"
+psutil = "^5.9.0"
+pydantic = "^2.5.0"
+grpcio = "^1.60.0"
+grpcio-tools = "^1.60.0"
+protobuf = "^4.25.0"
+
+# Optional dependencies
+torchvision = {version = ">=0.15.0", optional = true}
+google-cloud-storage = {version = "^2.14.0", optional = true}
+
+[tool.poetry.extras]
+vision = ["torchvision"]
+cloud = ["google-cloud-storage"]
+all = ["torchvision", "google-cloud-storage"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-asyncio = "^0.21.0"
+pytest-cov = "^4.1.0"
+black = "^23.12.0"
+isort = "^5.13.0"
+mypy = "^1.8.0"
+pylint = "^3.0.0"
+
+[tool.poetry.scripts]
+meshml-worker = "meshml_worker.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=meshml_worker --cov-report=term-missing"
