@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package meshml.metrics;
+
+message MetricPoint {
+  string job_id = 1;
+  int64 step = 2;
+  float loss = 3;
+  float accuracy = 4;
+  int64 timestamp_ms = 5;
+  string worker_id = 6;
+}
+
+message MetricsAck {
+  bool success = 1;
+  string message = 2;
+}
+
+service MetricsService {
+  rpc StreamMetrics(stream MetricPoint) returns (MetricsAck);
+}
