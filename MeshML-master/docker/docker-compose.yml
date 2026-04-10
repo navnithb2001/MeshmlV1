@@ -1,0 +1,300 @@
+# MeshML Platform - Docker Compose Configuration
+# Complete distributed ML training system
+
+services:
+  # ============================================================================
+  # Infrastructure Services
+  # ============================================================================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: meshml-postgres
+    environment:
+      POSTGRES_DB: meshml
+      POSTGRES_USER: meshml
+      POSTGRES_PASSWORD: meshml_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meshml"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - meshml-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: meshml-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - meshml-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: meshml-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: meshml
+      MINIO_ROOT_PASSWORD: meshml_minio_password
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - meshml-network
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: meshml-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set meshml http://minio:9000 meshml meshml_minio_password &&
+      mc mb -p meshml/meshml-models-local || true &&
+      mc mb -p meshml/meshml-datasets-local || true
+      "
+    networks:
+      - meshml-network
+
+  # ============================================================================
+  # Core Services
+  # ============================================================================
+
+  api-gateway:
+    build:
+      context: ../services/api-gateway
+      dockerfile: Dockerfile
+    container_name: meshml-api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://meshml:meshml_password@postgres:5432/meshml
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: your-secret-key-change-in-production
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 1440
+      DATASET_STORAGE_PATH: /app/datasets
+      DATASET_SHARDER_URL: http://dataset-sharder:8001
+      DATASET_SHARDER_GRPC_URL: dataset-sharder:50053
+      MODEL_REGISTRY_GRPC_URL: model-registry:50052
+      TASK_ORCHESTRATOR_GRPC_URL: task-orchestrator:50051
+      STORAGE_EMULATOR_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: meshml
+      AWS_SECRET_ACCESS_KEY: meshml_minio_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - dataset_storage:/app/datasets
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - meshml-network
+    restart: unless-stopped
+
+  model-registry:
+    build:
+      context: ../services/model-registry
+      dockerfile: Dockerfile
+    container_name: meshml-model-registry
+    ports:
+      - "8004:8004"
+      - "50054:50052"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://meshml:meshml_password@postgres:5432/meshml
+      GCS_BUCKET_NAME: meshml-models-local
+      STORAGE_EMULATOR_URL: http://minio:9000
+      STORAGE_PUBLIC_URL: http://localhost:9000
+      AWS_ACCESS_KEY_ID: meshml
+      AWS_SECRET_ACCESS_KEY: meshml_minio_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - model_storage:/app/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - meshml-network
+    restart: unless-stopped
+
+  dataset-sharder:
+    build:
+      context: ../services/dataset-sharder
+      dockerfile: Dockerfile
+    container_name: meshml-dataset-sharder
+    ports:
+      - "8001:8001"
+      - "50053:50053"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://meshml:meshml_password@postgres:5432/meshml
+      REDIS_URL: redis://redis:6379/1
+      LOCAL_STORAGE_PATH: /app/datasets
+      USE_GCS: "true"
+      BATCH_STORAGE_TYPE: gcs
+      GCS_BUCKET_NAME: meshml-datasets-local
+      STORAGE_EMULATOR_URL: http://minio:9000
+      STORAGE_PUBLIC_URL: http://localhost:9000
+      AWS_ACCESS_KEY_ID: meshml
+      AWS_SECRET_ACCESS_KEY: meshml_minio_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - dataset_storage:/app/datasets
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - meshml-network
+    restart: unless-stopped
+
+  task-orchestrator:
+    build:
+      context: ../services/task-orchestrator
+      dockerfile: Dockerfile
+    container_name: meshml-task-orchestrator
+    ports:
+      - "8002:8002"
+      - "50051:50051"  # gRPC port
+    environment:
+      DATABASE_URL: postgresql+asyncpg://meshml:meshml_password@postgres:5432/meshml
+      REDIS_URL: redis://redis:6379/2
+      PARAMETER_SERVER_URL: parameter-server:8003
+      DATASET_SHARDER_URL: dataset-sharder:8001
+      PARAMETER_SERVER_GRPC_URL: parameter-server:50052
+      DATASET_SHARDER_GRPC_URL: dataset-sharder:50053
+      MODEL_REGISTRY_GRPC_URL: model-registry:50052
+      METRICS_SERVICE_GRPC_URL: metrics-service:50055
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - meshml-network
+    restart: unless-stopped
+
+  parameter-server:
+    build:
+      context: ../services/parameter-server
+      dockerfile: Dockerfile
+    container_name: meshml-parameter-server
+    ports:
+      - "8003:8003"
+      - "50052:50052"  # gRPC port
+    environment:
+      DATABASE_URL: postgresql+asyncpg://meshml:meshml_password@postgres:5432/meshml
+      REDIS_URL: redis://redis:6379/3
+      AGGREGATION_STRATEGY: fedavg
+      SYNC_MODE: async
+      GRPC_PORT: "50052"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - meshml-network
+    restart: unless-stopped
+
+  metrics-service:
+    build:
+      context: ../services/metrics-service
+      dockerfile: Dockerfile
+    container_name: meshml-metrics-service
+    ports:
+      - "8005:8005"
+      - "50055:50055"  # gRPC port
+    environment:
+      DATABASE_URL: postgresql+asyncpg://meshml:meshml_password@postgres:5432/meshml
+      REDIS_URL: redis://redis:6379/0
+      GRPC_PORT: "50055"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - meshml-network
+    restart: unless-stopped
+
+# ============================================================================
+# Networks
+# ============================================================================
+
+networks:
+  meshml-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ============================================================================
+# Volumes
+# ============================================================================
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  model_storage:
+    driver: local
+  dataset_storage:
+    driver: local
+  minio_data:
+    driver: local
