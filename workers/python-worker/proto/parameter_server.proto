@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package meshml.parameter_server;
+
+// Parameter Server Service - Gradient aggregation and model weight distribution
+service ParameterServer {
+  // Worker fetches current model weights
+  rpc PullWeights(WeightsRequest) returns (WeightsResponse);
+  
+  // Worker sends computed gradients
+  rpc PushGradients(GradientsUpdate) returns (GradientsAck);
+  
+  // Worker fetches optimizer state (Adam momentum, etc.)
+  rpc GetOptimizerState(OptimizerStateRequest) returns (OptimizerStateResponse);
+  
+  // Get current model version
+  rpc GetModelVersion(VersionRequest) returns (VersionResponse);
+}
+
+// Request for model weights
+message WeightsRequest {
+  string job_id = 1;                     // Job identifier
+  string worker_id = 2;                  // Worker identifier
+  int32 current_version = 3;             // Worker's current model version
+  int32 epoch = 4;                       // Current epoch
+}
+
+// Response containing model weights
+message WeightsResponse {
+  bytes model_state_dict = 1;            // Serialized PyTorch state_dict
+  int32 version = 2;                     // Model version number
+  int32 epoch = 3;                       // Current epoch
+  bool is_updated = 4;                   // Whether weights were updated
+  string compression_type = 5;           // "none", "gzip", "zstd"
+  int64 uncompressed_size = 6;           // Original size in bytes
+}
+
+// Gradient update from worker
+message GradientsUpdate {
+  string job_id = 1;                     // Job identifier
+  string worker_id = 2;                  // Worker identifier
+  int32 batch_id = 3;                    // Batch identifier
+  int32 version = 4;                     // Model version these gradients are for
+  int32 epoch = 5;                       // Current epoch
+  bytes gradients = 6;                   // Serialized gradients
+  int32 batch_size = 7;                  // Number of samples in batch
+  float learning_rate = 8;               // Learning rate used
+  string compression_type = 9;           // "none", "gzip", "zstd"
+  int64 uncompressed_size = 10;          // Original size in bytes
+  GradientMetadata metadata = 11;        // Additional metadata
+}
+
+// Gradient metadata
+message GradientMetadata {
+  float loss = 1;                        // Batch loss
+  float gradient_norm = 2;               // L2 norm of gradients
+  int64 computation_time_ms = 3;         // Time to compute gradients
+  map<string, float> layer_norms = 4;    // Per-layer gradient norms
+}
+
+// Acknowledgment of gradient update
+message GradientsAck {
+  bool success = 1;
+  string message = 2;
+  int32 new_version = 3;                 // New model version after aggregation
+  bool staleness_accepted = 4;           // Whether stale gradients were accepted
+  int32 staleness_threshold = 5;         // Max version difference allowed
+}
+
+// Request for optimizer state
+message OptimizerStateRequest {
+  string job_id = 1;                     // Job identifier
+  string worker_id = 2;                  // Worker identifier
+}
+
+// Response containing optimizer state
+message OptimizerStateResponse {
+  bytes optimizer_state = 1;             // Serialized optimizer state (Adam momentum, etc.)
+  string optimizer_type = 2;             // "adam", "sgd", "rmsprop", etc.
+  int32 version = 3;                     // Optimizer state version
+}
+
+// Request for model version
+message VersionRequest {
+  string job_id = 1;                     // Job identifier
+}
+
+// Response with version information
+message VersionResponse {
+  int32 current_version = 1;             // Current model version
+  int32 epoch = 2;                       // Current epoch
+  int32 total_updates = 3;               // Total gradient updates applied
+  int64 last_update_timestamp = 4;       // Unix timestamp of last update
+}
