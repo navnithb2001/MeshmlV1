@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: parameter-server
+  namespace: meshml
+  labels:
+    app: parameter-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: parameter-server
+  template:
+    metadata:
+      labels:
+        app: parameter-server
+    spec:
+      containers:
+      - name: parameter-server
+        image: gcr.io/PROJECT_ID/meshml-parameter-server:latest
+        ports:
+        - containerPort: 8003
+          name: http
+        - containerPort: 50052
+          name: grpc
+        envFrom:
+        - configMapRef:
+            name: meshml-config
+        - secretRef:
+            name: meshml-secrets
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8003
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: parameter-server-service
+  namespace: meshml
+  labels:
+    app: parameter-server
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - port: 8003
+    targetPort: 8003
+    protocol: TCP
+    name: http
+  - port: 50052
+    targetPort: 50052
+    protocol: TCP
+    name: grpc
+  selector:
+    app: parameter-server
