@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package meshml.model_registry;
+
+service ModelRegistry {
+  rpc RegisterNewModel(RegisterModelRequest) returns (RegisterModelResponse);
+  rpc FinalizeModelUpload(FinalizeModelUploadRequest) returns (FinalizeModelUploadResponse);
+  rpc GetModelArtifact(GetModelArtifactRequest) returns (GetModelArtifactResponse);
+  rpc GetFinalModelDownloadUrl(GetFinalModelDownloadUrlRequest) returns (GetFinalModelDownloadUrlResponse);
+  rpc UploadCheckpoint(CheckpointUploadRequest) returns (CheckpointUploadResponse);
+  rpc UploadFinalModel(FinalModelUploadRequest) returns (FinalModelUploadResponse);
+}
+
+message RegisterModelRequest {
+  string name = 1;
+  string description = 2;
+  string group_id = 3;
+  string created_by_user_id = 4;
+  string architecture_type = 5;
+  string dataset_type = 6;
+  string version = 7;
+  map<string, string> metadata = 8;
+}
+
+message RegisterModelResponse {
+  int64 model_id = 1;
+  string upload_url = 2;
+  string gcs_path = 3;
+  int32 expires_in_seconds = 4;
+}
+
+message FinalizeModelUploadRequest {
+  int64 model_id = 1;
+  string gcs_path = 2;
+  int64 file_size_bytes = 3;
+  string file_hash = 4;
+}
+
+message FinalizeModelUploadResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetModelArtifactRequest {
+  int64 model_id = 1;
+  string filename = 2;
+}
+
+message GetModelArtifactResponse {
+  bool found = 1;
+  string download_url = 2;
+  string gcs_path = 3;
+  int32 expires_in_seconds = 4;
+  string sha256 = 5;
+}
+
+message CheckpointUploadRequest {
+  int64 model_id = 1;
+  string checkpoint_type = 2;
+  bytes state_dict = 3;
+  map<string, float> metrics = 4;
+}
+
+message CheckpointUploadResponse {
+  bool success = 1;
+  string message = 2;
+  string gcs_path = 3;
+}
+
+message FinalModelUploadRequest {
+  int64 model_id = 1;
+  bytes state_dict = 2;
+  map<string, float> metrics = 3;
+}
+
+message FinalModelUploadResponse {
+  bool success = 1;
+  string message = 2;
+  string gcs_path = 3;
+}
+
+message GetFinalModelDownloadUrlRequest {
+  int64 model_id = 1;
+}
+
+message GetFinalModelDownloadUrlResponse {
+  bool found = 1;
+  string download_url = 2;
+  string storage_path = 3;
+  int32 expires_in_seconds = 4;
+}
