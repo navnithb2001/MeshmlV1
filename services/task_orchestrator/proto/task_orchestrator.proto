@@ -1,0 +1,189 @@
+syntax = "proto3";
+
+package meshml.orchestrator;
+
+// Task Orchestrator Service - Worker lifecycle and task management
+service TaskOrchestrator {
+  // Job submission from API Gateway
+  rpc InitiateTraining(JobSubmission) returns (JobSubmissionAck);
+
+  // Worker registers with the system and provides capabilities
+  rpc RegisterWorker(WorkerCapabilities) returns (WorkerRegistration);
+  
+  // Worker sends periodic heartbeat to indicate it's alive
+  rpc SendHeartbeat(Heartbeat) returns (HeartbeatAck);
+  
+  // Worker requests tasks to execute
+  rpc RequestTask(TaskRequest) returns (TaskAssignment);
+
+  // Bi-directional streaming for live control plane
+  rpc StreamTasks(stream WorkerStreamRequest) returns (stream OrchestratorStreamResponse);
+  
+}
+
+// Job priority levels
+enum JobPriority {
+  JOB_PRIORITY_LOW = 0;
+  JOB_PRIORITY_MEDIUM = 1;
+  JOB_PRIORITY_HIGH = 2;
+  JOB_PRIORITY_CRITICAL = 3;
+}
+
+// Resource requirements for job execution
+message JobRequirements {
+  int32 min_gpu_count = 1;
+  float min_gpu_memory_gb = 2;
+  int32 min_cpu_count = 3;
+  float min_ram_gb = 4;
+  bool requires_cuda = 5;
+  bool requires_mps = 6;
+  int32 max_execution_time_seconds = 7;
+}
+
+// Job submission payload
+message JobSubmission {
+  string job_id = 1;
+  string group_id = 2;
+  string model_id = 3;
+  string dataset_id = 4;
+  string user_id = 5;
+  int32 batch_size = 6;
+  int32 num_epochs = 7;
+  float learning_rate = 8;
+  string optimizer = 9;
+  JobRequirements requirements = 10;
+  map<string, string> tags = 11;
+  string description = 12;
+  JobPriority priority = 13;
+}
+
+// Job submission response
+message JobSubmissionAck {
+  bool success = 1;
+  string message = 2;
+}
+
+// Worker capability information during registration
+message WorkerCapabilities {
+  string user_id = 1;                    // User who owns this worker
+  string device_type = 2;                // "python", "cpp", "javascript"
+  string os = 3;                         // Operating system
+  string arch = 4;                       // CPU architecture (x86_64, arm64, etc.)
+  int32 cpu_cores = 5;                   // Number of CPU cores
+  int64 ram_bytes = 6;                   // RAM in bytes
+  repeated GPU gpus = 7;                 // GPU information
+  map<string, string> frameworks = 8;    // Installed frameworks (pytorch:2.1.0, etc.)
+  string ip_address = 9;                 // Worker IP address
+  string worker_name = 10;               // Human-readable worker name
+}
+
+// GPU information
+message GPU {
+  string name = 1;                       // GPU model name
+  int64 memory_bytes = 2;                // VRAM in bytes
+  string driver_version = 3;             // Driver version
+  bool cuda_available = 4;               // CUDA support
+  bool metal_available = 5;              // Metal support (macOS)
+}
+
+// Response to worker registration
+message WorkerRegistration {
+  string worker_id = 1;                  // Unique worker identifier
+  repeated string groups = 2;            // Groups this worker has access to
+  int32 heartbeat_interval_seconds = 3;  // How often to send heartbeats
+  string message = 4;                    // Registration status message
+}
+
+// Worker heartbeat message
+message Heartbeat {
+  string worker_id = 1;                  // Worker identifier
+  string status = 2;                     // "online", "busy", "idle"
+  int32 active_tasks = 3;                // Number of tasks currently processing
+  float cpu_usage_percent = 4;           // CPU usage percentage
+  float ram_usage_percent = 5;           // RAM usage percentage
+  float gpu_usage_percent = 6;           // GPU usage percentage (if available)
+}
+
+// Heartbeat acknowledgment
+message HeartbeatAck {
+  bool success = 1;
+  string message = 2;
+  int64 server_timestamp = 3;            // Server time for clock sync
+}
+
+// Worker requests a task
+message TaskRequest {
+  string worker_id = 1;                  // Worker identifier
+  repeated string preferred_job_ids = 2; // Jobs this worker wants to work on
+}
+
+// Streaming request from worker
+message WorkerStreamRequest {
+  string worker_id = 1;
+  oneof payload {
+    Heartbeat heartbeat = 2;
+    TaskRequest task_request = 3;
+    TaskResult task_result = 4;
+  }
+}
+
+// Streaming response from orchestrator
+message OrchestratorStreamResponse {
+  string worker_id = 1;
+  oneof payload {
+    TaskAssignment assignment = 2;
+    HeartbeatAck heartbeat_ack = 3;
+    string message = 4;
+  }
+}
+
+// Task assignment from orchestrator to worker
+message TaskAssignment {
+  bool has_task = 1;                     // Whether a task is available
+  string job_id = 2;                     // Job identifier
+  string batch_id = 3;                   // Data batch identifier
+  string batch_gcs_path = 4;             // GCS path to download batch data
+  string model_gcs_path = 5;             // GCS path to download model
+  int32 current_epoch = 6;               // Current training epoch
+  bytes hyperparameters = 7;             // Serialized hyperparameters (JSON)
+  string message = 8;                    // Assignment message
+  string model_url = 9;                  // Signed URL for model code
+  string data_url = 10;                  // Signed URL for data batch
+}
+
+message TaskResult {
+  string worker_id = 1;
+  string job_id = 2;
+  string batch_id = 3;
+  bool success = 4;
+  string error_message = 5;
+}
+
+// Worker reports batch completion
+message BatchCompletion {
+  string worker_id = 1;                  // Worker identifier
+  string job_id = 2;                     // Job identifier
+  int32 batch_id = 3;                    // Batch identifier
+  int32 epoch = 4;                       // Epoch number
+  float loss = 5;                        // Batch loss
+  float accuracy = 6;                    // Batch accuracy (if applicable)
+  int64 processing_time_ms = 7;          // Time taken to process batch
+  bytes metrics = 8;                     // Additional metrics (JSON)
+}
+
+// Worker reports batch failure
+message BatchFailure {
+  string worker_id = 1;                  // Worker identifier
+  string job_id = 2;                     // Job identifier
+  int32 batch_id = 3;                    // Batch identifier
+  string error_type = 4;                 // Error type (OOM, timeout, etc.)
+  string error_message = 5;              // Error details
+  string stack_trace = 6;                // Stack trace (optional)
+}
+
+// Batch acknowledgment
+message BatchAck {
+  bool success = 1;
+  string message = 2;
+  bool should_continue = 3;              // Whether worker should continue
+}

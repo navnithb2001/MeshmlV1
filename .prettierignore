@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+.venv
+venv
+*.min.js
+*.min.css
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+proto/generated
+coverage
+.nyc_output

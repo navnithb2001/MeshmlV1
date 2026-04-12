@@ -1,0 +1,179 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+mesh.venv/
+*.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# C++
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+workers/cpp-worker/build/
+workers/cpp-worker/build_simple/
+workers/cpp-worker/libtorch/
+workers/cpp-worker/libtorch.zip
+libtorch.zip
+*.user
+*.swo
+*.swp
+.vscode/
+.idea/
+
+# JavaScript/Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+.parcel-cache/
+.next/
+out/
+dist/
+dashboard/dist/
+workers/js-worker/dist/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+.dockerignore
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Logs
+logs/
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model files (large binary files)
+*.pt
+*.pth
+*.weights
+*.onnx
+*.pb
+*.h5
+*.model
+checkpoints/
+
+# Dataset files
+data/
+datasets/
+*.csv
+*.parquet
+*.tfrecord
+
+# Secrets
+secrets/
+*.key
+*.crt
+kubeconfig
+
+# Generated proto files
+proto/generated/
+services/*/app/proto/*_pb2.py
+services/*/app/proto/*_pb2_grpc.py
+workers/python-worker/meshml_worker/proto/*_pb2.py
+workers/python-worker/meshml_worker/proto/*_pb2_grpc.py
+
+# Monitoring data
+monitoring/prometheus/data/
+monitoring/grafana/data/
+
+# Virtual environments
+mesh.venv/
+
+# C++ build artifacts
+workers/cpp-worker/build/
+workers/cpp-worker/libtorch/
+workers/cpp-worker/*.so
+workers/cpp-worker/*.dylib
+workers/cpp-worker/*.a
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local MeshML runtime artifacts
+.meshml/
+._*

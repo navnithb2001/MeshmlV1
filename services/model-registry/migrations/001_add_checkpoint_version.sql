@@ -1,0 +1,2 @@
+ALTER TABLE models
+ADD COLUMN IF NOT EXISTS checkpoint_version INTEGER DEFAULT 0;
